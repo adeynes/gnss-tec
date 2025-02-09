@@ -164,7 +164,7 @@ while True:
                 ephemeris = ephemeri[prn][closest(ephemeri[prn], tow)]
                 satx, saty, satz, _, _, _, dts = posVelDtr(tow, ephemeris)
 
-                satpos[prn].append([satx, saty, satz])
+                satpos[prn].append([satx, saty, satz, dts])
 
                 g = (mpf(4213435), mpf(162752), mpf(4769685))
                 s = (satx - g[0], saty - g[1], satz - g[2])
@@ -192,14 +192,14 @@ while True:
             print(prn, sum(ionos[prn]) / len(ionos[prn]), sum(stecs[prn]) / len(stecs[prn]), sum(angles[prn]) / len(angles[prn]))
 
         date = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S")
-        f = open(f"ionodata_20250120", "a")
+        f = open(f"ionodata_20250212", "a")
         ionos = {prn: [float(vv) for vv in v] for prn, v in ionos.items()}
         stecs = {prn: [float(vv) for vv in v] for prn, v in stecs.items()}
         angles = {prn: [float(vv) for vv in v] for prn, v in angles.items()}
         clocks = {prn: [float(vv) for vv in v] for prn, v in clocks.items()}
         pseudoranges = {prn: [float(vv) for vv in v] for prn, v in pseudoranges.items()}
         phases = {prn: [float(vv) for vv in v] for prn, v in phases.items()}
-        satpos = {prn: [(float(x), float(y), float(z)) for (x, y, z) in v] for prn, v in satpos.items()}
+        satpos = {prn: [(float(x), float(y), float(z), float(dts)) for (x, y, z, dts) in v] for prn, v in satpos.items()}
         f.write(json.dumps({"date": date, "iono_delays": ionos, "stecs": stecs, "angles": angles, "clk_offset": clocks, "pseudoranges": pseudoranges, "phases": phases, "satpos": satpos}))
         f.close()
 
