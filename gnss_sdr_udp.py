@@ -54,13 +54,13 @@ sock_syn.bind((UDP_IP, SYN_PORT))
 
 ephemeri = SortedDict()
 latest_ephemeri = {}
-clock_offsets = SortedDict()
+pvts = SortedDict()
 obss = SortedDict()
 prns = []
 
 while True:
     ephemeri = SortedDict(latest_ephemeri)
-    clock_offsets = SortedDict()
+    pvts = SortedDict()
     obss = SortedDict()
     prns = []
 
@@ -92,7 +92,7 @@ while True:
                     pvt = monitor_pvt_pb2.MonitorPvt()
                     pvt.ParseFromString(pvt_data)
 
-                    clock_offsets[pvt.rx_time] = pvt.user_clk_offset
+                    pvts[pvt.rx_time] = {"clk_offset": pvt.user_clk_offset, "pos": [pvt.pos_x, pvt.pos_y, pvt.pos_z]}
 
                 except Exception as e:
                     print(f"Failed to decode message: {e}")
@@ -139,17 +139,15 @@ while True:
         continue
 
     ionos = {}
-    stecs = {}
     angles = {}
-    clocks = {}
+    pvts_ = {}
     pseudoranges = {}
     phases = {}
     satpos = {}
     for prn in prns:
         ionos[prn] = []
-        stecs[prn] = []
         angles[prn] = []
-        clocks[prn] = []
+        pvts_[prn] = []
         pseudoranges[prn] = []
         phases[prn] = []
         satpos[prn] = []
@@ -159,8 +157,8 @@ while True:
         for prn in prns:
             for obs in obss[prn]:
                 tow = obs.interp_tow_ms / 1000
-                t = closest(clock_offsets, obs.rx_time)
-                clock_offset = mpf(clock_offsets[t])
+                t = closest(pvts, obs.rx_time)
+                clock_offset = mpf(pvts[t]["clk_offset"])
                 ephemeris = ephemeri[prn][closest(ephemeri[prn], tow)]
                 satx, saty, satz, _, _, _, dts = posVelDtr(tow, ephemeris)
 
@@ -182,25 +180,20 @@ while True:
                 #iono = (obs.pseudorange_m - obs.carrier_phase_rads * 2 / math.pi * (SPEED_OF_LIGHT_M_S / 1575420000))/2
                 ionos[prn].append(iono)
 
-
-                stecs[prn].append(1575420000**2 / (40.3e16) * iono)
-
-                clocks[prn].append(clock_offset)
+                pvts_[prn].append({"clk_offset": float(clock_offset), "pos": pvts[t]["pos"]})
 
                 phases[prn].append(obs.carrier_phase_rads)
 
-            print(prn, sum(ionos[prn]) / len(ionos[prn]), sum(stecs[prn]) / len(stecs[prn]), sum(angles[prn]) / len(angles[prn]))
+            print(prn, sum(ionos[prn]) / len(ionos[prn]), sum(angles[prn]) / len(angles[prn]))
 
         date = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S")
-        f = open(f"ionodata_20250212", "a")
+        f = open(f"ionodata_20250312", "a")
         ionos = {prn: [float(vv) for vv in v] for prn, v in ionos.items()}
-        stecs = {prn: [float(vv) for vv in v] for prn, v in stecs.items()}
         angles = {prn: [float(vv) for vv in v] for prn, v in angles.items()}
-        clocks = {prn: [float(vv) for vv in v] for prn, v in clocks.items()}
         pseudoranges = {prn: [float(vv) for vv in v] for prn, v in pseudoranges.items()}
         phases = {prn: [float(vv) for vv in v] for prn, v in phases.items()}
         satpos = {prn: [(float(x), float(y), float(z), float(dts)) for (x, y, z, dts) in v] for prn, v in satpos.items()}
-        f.write(json.dumps({"date": date, "iono_delays": ionos, "stecs": stecs, "angles": angles, "clk_offset": clocks, "pseudoranges": pseudoranges, "phases": phases, "satpos": satpos}))
+        f.write(json.dumps({"date": date, "iono_delays": ionos, "angles": angles, "pvt": pvts_, "pseudoranges": pseudoranges, "phases": phases, "satpos": satpos}))
         f.close()
 
     except Exception as e:
